@@ -1,6 +1,5 @@
 import { z } from 'zod';
 import { chat } from '@/lib/ai/nim-client';
-import { parseLenientJson } from '@/lib/ai/parse-json';
 import { buildWriterMessages } from '@/lib/ai/prompts';
 import { markdownToPlainText, truncate } from '@/lib/text';
 import type { CategoryInfo, GeneratedPost } from '@/types/blog';
@@ -22,8 +21,8 @@ const faqItems = z
 
 /**
  * Deliberately forgiving: only the body is hard-required (without it there is no
- * article). Everything else is coerced or backfilled below, so a single
- * imperfect field never throws away an otherwise-usable post.
+ * article). Everything else is coerced or backfilled, so a single imperfect
+ * field never throws away an otherwise-usable post.
  */
 const generatedSchema = z.object({
   title: z.string().catch(''),
@@ -37,18 +36,63 @@ const generatedSchema = z.object({
 });
 
 /**
- * Parses the writer's delimited response: one-line JSON metadata between
- * ---META--- and ---BODY---, then raw Markdown between ---BODY--- and ---END---.
- * Keeping the long Markdown out of the JSON avoids fragile string escaping.
+ * Splits the marker-delimited head (everything before ---BODY---) into named
+ * sections. Markers look like `---TITLE---`; content runs to the next marker.
+ */
+function splitSections(head: string): Record<string, string> {
+  const sections: Record<string, string> = {};
+  const markers = [...head.matchAll(/---([A-Z]+)---/g)];
+  markers.forEach((marker, index) => {
+    const start = (marker.index ?? 0) + marker[0].length;
+    const end =
+      index + 1 < markers.length ? markers[index + 1].index ?? head.length : head.length;
+    sections[marker[1].toUpperCase()] = head.slice(start, end).trim();
+  });
+  return sections;
+}
+
+function splitList(value: string | undefined): string[] {
+  if (!value) return [];
+  return value
+    .split(/[,\n]/)
+    .map((item) => item.replace(/^[-*]\s*/, '').trim())
+    .filter(Boolean);
+}
+
+function parseFaq(value: string | undefined): { question: string; answer: string }[] {
+  if (!value) return [];
+  const items: { question: string; answer: string }[] = [];
+  const pattern = /Q:\s*([\s\S]*?)\s*A:\s*([\s\S]*?)(?=\n\s*Q:|$)/gi;
+  for (const match of value.matchAll(pattern)) {
+    const question = match[1].trim();
+    const answer = match[2].trim();
+    if (question && answer) items.push({ question, answer });
+  }
+  return items;
+}
+
+/**
+ * Parses the writer's flat, marker-delimited response (NO JSON). The body is
+ * extracted by its own markers first so Markdown inside it (e.g. a `---` rule)
+ * can never be mistaken for a metadata marker; the head is then split by field.
  */
 function parseWriterResponse(raw: string): unknown {
-  const metaMatch = raw.match(/---META---([\s\S]*?)---BODY---/i);
   const bodyMatch = raw.match(/---BODY---([\s\S]*?)(?:---END---|$)/i);
-  if (!metaMatch || !bodyMatch) {
-    throw new Error('Writer response missing ---META---/---BODY--- markers');
+  if (!bodyMatch) {
+    throw new Error('Writer response missing ---BODY--- section');
   }
-  const meta = parseLenientJson(metaMatch[1]) as Record<string, unknown>;
-  return { ...meta, bodyMarkdown: bodyMatch[1].trim() };
+  const sections = splitSections(raw.slice(0, bodyMatch.index ?? 0));
+
+  return {
+    title: sections.TITLE ?? '',
+    excerpt: sections.EXCERPT ?? '',
+    metaDescription: sections.METADESCRIPTION ?? '',
+    bodyMarkdown: bodyMatch[1].trim(),
+    tags: splitList(sections.TAGS),
+    keywords: splitList(sections.KEYWORDS),
+    focusKeyword: sections.FOCUSKEYWORD ?? '',
+    faq: parseFaq(sections.FAQ),
+  };
 }
 
 export interface GenerateArticleResult {

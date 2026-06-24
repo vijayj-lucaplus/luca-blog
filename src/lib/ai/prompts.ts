@@ -2,11 +2,9 @@ import { PRODUCTS } from '@/config/constants';
 import type { ChatMessage } from '@/lib/ai/nim-client';
 import type { CategoryInfo } from '@/types/blog';
 
-export const PROMPT_VERSION = 'v2';
+export const PROMPT_VERSION = 'v3';
 
 const TARGET_WORDS = 1100;
-
-const META_SHAPE = `{"title":"40-65 chars, keyword near front","excerpt":"1-2 sentence summary, max ~280 chars","metaDescription":"140-160 chars, includes focus keyword","tags":["3-6 lowercase tags"],"keywords":["3-8 keywords"],"focusKeyword":"the single primary keyword","faq":[{"question":"First real question?","answer":"40-70 word answer"},{"question":"Second real question?","answer":"40-70 word answer"},{"question":"Third real question?","answer":"40-70 word answer"}]}`;
 
 function productForCategory(category: CategoryInfo) {
   return category.targetProduct === 'lucapay' ? PRODUCTS.lucapay : PRODUCTS.lucaplus;
@@ -29,16 +27,33 @@ HARD RULES — follow every one:
 - Include EXACTLY ONE call to action that links to ${product.name} using this exact URL: ${product.url} — use a natural anchor text. Do NOT include any other links, URLs or domains anywhere in the article.
 - Structure: a short intro paragraph (40-70 words), then 5-7 "##" sections, then a "## Key takeaways" section with a bulleted list, then the CTA sentence, then the disclaimer.
 - LENGTH IS MANDATORY: write a thorough, in-depth article of AT LEAST 900 words (target ${TARGET_WORDS}). Every "##" section must contain 2-4 full paragraphs of real explanation and examples. Do NOT write a short, shallow or summary-style article.
-- FAQ IS MANDATORY: the "faq" field in the ---META--- JSON MUST contain AT LEAST 3 objects, each with a non-empty "question" and a 40-70 word "answer". Put the FAQ only in that JSON field — do NOT add an FAQ section inside the body.
+- FAQ IS MANDATORY: provide AT LEAST 3 FAQ pairs, each a real question and a 40-70 word answer.
 
-OUTPUT FORMAT — respond in EXACTLY this structure and nothing else:
----META---
-${META_SHAPE}
+OUTPUT FORMAT — respond in EXACTLY this structure, as PLAIN TEXT (NOT JSON). Put each field's value on its own line(s) under its marker. Write nothing before ---TITLE--- or after ---END---:
+---TITLE---
+40-65 character title with the focus keyword near the front
+---EXCERPT---
+1-2 sentence summary, max ~280 characters
+---METADESCRIPTION---
+140-160 characters including the focus keyword
+---TAGS---
+3-6 lowercase tags, comma-separated
+---KEYWORDS---
+3-8 keywords, comma-separated
+---FOCUSKEYWORD---
+the single primary keyword
+---FAQ---
+Q: first real question?
+A: 40-70 word answer
+Q: second real question?
+A: 40-70 word answer
+Q: third real question?
+A: 40-70 word answer
 ---BODY---
-(the full article in Markdown here)
+the full article in Markdown
 ---END---
 
-CRITICAL: the ---META--- block must be ONE single line of valid JSON with no line breaks inside it. Put the article Markdown ONLY inside the ---BODY--- block. Do not add any text before ---META--- or after ---END---.`;
+Do NOT use JSON, code fences, or quotes around values. Use only the markers and plain text exactly as shown. Each FAQ line must start with "Q:" or "A:".`;
 
   const user = `Write a blog post for the "${params.category.name}" category.
 
@@ -47,7 +62,7 @@ Angle: ${params.angle}
 Focus keyword: ${params.focusKeyword}
 Product to feature in the single CTA: ${product.name} (${product.url})
 
-Write an in-depth article of at least 900 words. Respond using the ---META--- / ---BODY--- / ---END--- format from the system message.`;
+Write an in-depth article of at least 900 words. Respond using the marker format from the system message — plain text, no JSON.`;
 
   return [
     { role: 'system', content: system },
