@@ -1,26 +1,107 @@
 @import "tailwindcss";
 
+/*
+ * LucaPlus brand theme (Tailwind v4).
+ * Colours taken from the live LucaPlus site CSS; fonts (Montserrat headings,
+ * Hind body) match blog.lucaplus.com. Font CSS variables are injected by
+ * next/font in app/layout.tsx and mapped here so `font-heading` / `font-sans`
+ * resolve correctly.
+ */
+@theme inline {
+  /* Brand palette */
+  --color-brand: #1cbd99;
+  --color-brand-dark: #159b7d;
+  --color-brand-light: #5fd3b8;
+
+  --color-navy: #203060;
+  --color-navy-light: #2c407e;
+
+  --color-gold: #fec257;
+  --color-orange: #f3b03a;
+
+  --color-surface-50: #f4faf9;
+  --color-surface-100: #e1eeee;
+  --color-surface-200: #daeae8;
+
+  --color-ink: #203060;
+  --color-muted: #5b6b86;
+
+  /* Typography — variables come from next/font (see layout.tsx) */
+  --font-heading: var(--font-montserrat), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-hind), ui-sans-serif, system-ui, sans-serif;
+
+  /* Layout */
+  --breakpoint-content: 1200px;
+}
+
 :root {
   --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --foreground: #203060;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-hind), ui-sans-serif, system-ui, sans-serif;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-montserrat), ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Long-form article styling for rendered Markdown */
+.prose-article {
+  color: #2b3a55;
+  line-height: 1.75;
+}
+.prose-article h2 {
+  font-size: 1.6rem;
+  margin-top: 2.25rem;
+  margin-bottom: 0.75rem;
+  color: #203060;
+}
+.prose-article h3 {
+  font-size: 1.25rem;
+  margin-top: 1.75rem;
+  margin-bottom: 0.5rem;
+  color: #203060;
+}
+.prose-article p {
+  margin-bottom: 1.1rem;
+}
+.prose-article ul,
+.prose-article ol {
+  margin: 0 0 1.1rem 1.25rem;
+}
+.prose-article ul {
+  list-style: disc;
+}
+.prose-article ol {
+  list-style: decimal;
+}
+.prose-article li {
+  margin-bottom: 0.4rem;
+}
+.prose-article a {
+  color: #159b7d;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.prose-article a:hover {
+  color: #1cbd99;
+}
+.prose-article blockquote {
+  border-left: 4px solid #1cbd99;
+  padding-left: 1rem;
+  color: #5b6b86;
+  font-style: italic;
+  margin: 1.25rem 0;
+}
+.prose-article strong {
+  color: #203060;
 }
