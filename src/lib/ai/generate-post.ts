@@ -2,22 +2,38 @@ import { z } from 'zod';
 import { chat } from '@/lib/ai/nim-client';
 import { parseLenientJson } from '@/lib/ai/parse-json';
 import { buildWriterMessages } from '@/lib/ai/prompts';
+import { markdownToPlainText, truncate } from '@/lib/text';
 import type { CategoryInfo, GeneratedPost } from '@/types/blog';
 
-const faqSchema = z.object({
-  question: z.string().min(5),
-  answer: z.string().min(10),
-});
+/**
+ * Lenient FAQ parse: keep only plausibly-complete entries and never throw on a
+ * short or missing FAQ. Publish-quality (>= 2 FAQ items, length, disclaimer,
+ * allowed links) is enforced later by validateArticle — so a weak result is
+ * saved as a draft instead of discarding the whole article.
+ */
+const faqItems = z
+  .array(z.object({ question: z.string(), answer: z.string() }))
+  .catch([])
+  .transform((items) =>
+    items.filter(
+      (item) => item.question.trim().length >= 3 && item.answer.trim().length >= 10,
+    ),
+  );
 
+/**
+ * Deliberately forgiving: only the body is hard-required (without it there is no
+ * article). Everything else is coerced or backfilled below, so a single
+ * imperfect field never throws away an otherwise-usable post.
+ */
 const generatedSchema = z.object({
-  title: z.string().min(8).max(160),
-  excerpt: z.string().min(20).max(500),
-  metaDescription: z.string().min(20).max(260),
-  bodyMarkdown: z.string().min(400),
-  tags: z.array(z.string().min(2)).min(2).max(10),
-  keywords: z.array(z.string().min(2)).min(1).max(15),
-  focusKeyword: z.string().min(2),
-  faq: z.array(faqSchema).min(2).max(6),
+  title: z.string().catch(''),
+  excerpt: z.string().catch(''),
+  metaDescription: z.string().catch(''),
+  bodyMarkdown: z.string().min(200),
+  tags: z.array(z.string()).catch([]),
+  keywords: z.array(z.string()).catch([]),
+  focusKeyword: z.string().catch(''),
+  faq: faqItems,
 });
 
 /**
@@ -42,9 +58,9 @@ export interface GenerateArticleResult {
 }
 
 /**
- * Single NIM call that writes a full article. Bounded by a per-call timeout and
- * a modest token cap so the whole generate-and-publish pipeline finishes inside
- * the serverless function time limit — one fast call, no second editor pass.
+ * Single NIM call that writes a full article, then backfills any missing
+ * metadata so a usable article is always returned. Quality gating (and the
+ * draft-vs-publish decision) happens downstream in validateArticle.
  */
 export async function generateArticle(params: {
   topicTitle: string;
@@ -58,9 +74,24 @@ export async function generateArticle(params: {
     maxTokens: 2048,
     timeoutMs: 240_000,
   });
-  const parsed = generatedSchema.parse(parseWriterResponse(result.content)) as GeneratedPost;
+
+  const parsed = generatedSchema.parse(parseWriterResponse(result.content));
+
+  const bodyPlain = markdownToPlainText(parsed.bodyMarkdown);
+  const excerpt = parsed.excerpt.trim() || truncate(bodyPlain, 200);
+  const article: GeneratedPost = {
+    title: parsed.title.trim() || params.topicTitle,
+    excerpt,
+    metaDescription: parsed.metaDescription.trim() || truncate(excerpt, 160),
+    bodyMarkdown: parsed.bodyMarkdown,
+    tags: parsed.tags,
+    keywords: parsed.keywords,
+    focusKeyword: parsed.focusKeyword.trim() || params.focusKeyword,
+    faq: parsed.faq,
+  };
+
   return {
-    article: parsed,
+    article,
     tokensIn: result.tokensIn,
     tokensOut: result.tokensOut,
   };
