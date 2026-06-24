@@ -56,7 +56,7 @@ export async function generateArticle(params: {
   const result = await chat(messages, {
     temperature: 0.6,
     maxTokens: 2048,
-    timeoutMs: 45_000,
+    timeoutMs: 240_000,
   });
   const parsed = generatedSchema.parse(parseWriterResponse(result.content)) as GeneratedPost;
   return {

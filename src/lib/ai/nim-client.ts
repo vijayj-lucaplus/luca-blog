@@ -17,7 +17,7 @@ export interface ChatResult {
   tokensOut: number;
 }
 
-const DEFAULT_TIMEOUT_MS = 45_000;
+const DEFAULT_TIMEOUT_MS = 240_000;
 const MAX_RETRIES = 2;
 
 let client: OpenAI | null = null;
@@ -32,6 +32,11 @@ function getClient(): OpenAI {
     client = new OpenAI({
       baseURL: env.NIM_BASE_URL,
       apiKey: env.NVIDIA_API_KEY,
+      // We run our own retry loop (see `chat`), so disable the SDK's built-in
+      // retries — otherwise a timed-out request is silently re-issued and the
+      // second attempt runs past the serverless function limit (a 60s
+      // FUNCTION_INVOCATION_TIMEOUT instead of a clean, in-budget failure).
+      maxRetries: 0,
     });
   }
   return client;
