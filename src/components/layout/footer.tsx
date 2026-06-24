@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import { SocialIcons } from '@/components/common/social-icons';
-import { NewsletterForm } from '@/components/layout/newsletter-form';
 import { CATEGORIES, SITE } from '@/config/constants';
 
 export function Footer() {
@@ -8,7 +7,7 @@ export function Footer() {
 
   return (
     <footer className="mt-16 bg-navy text-white">
-      <div className="mx-auto grid max-w-content gap-10 px-4 py-12 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mx-auto grid max-w-content gap-10 px-4 py-12 sm:grid-cols-2 lg:grid-cols-3">
         <div>
           <span className="font-heading text-2xl font-extrabold tracking-wide">
             <span className="text-white">LUCA</span>
@@ -43,16 +42,6 @@ export function Footer() {
             <li><a href="/rss.xml" className="hover:text-brand">RSS feed</a></li>
             <li><a href="/sitemap.xml" className="hover:text-brand">Sitemap</a></li>
           </ul>
-        </div>
-
-        <div>
-          <h2 className="font-heading text-sm font-semibold uppercase tracking-wide text-white/90">
-            Subscribe
-          </h2>
-          <p className="mt-4 mb-3 text-sm text-white/70">
-            Get practical finance and invoicing tips in your inbox.
-          </p>
-          <NewsletterForm source="footer" tone="light" />
         </div>
       </div>
 

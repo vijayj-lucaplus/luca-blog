@@ -1,8 +1,7 @@
 import { connectToDatabase } from '@/lib/db/mongoose';
 import { GenerationJob, type IGenerationJob } from '@/models/generation-job';
 import { Post, type IPost } from '@/models/post';
-import { campaignCounts } from '@/services/campaign-service';
-import { subscriberCounts } from '@/services/subscriber-service';
+import { reapStaleJobs } from '@/services/job-service';
 
 type LeanJob = IGenerationJob & { _id: unknown };
 type LeanPostDoc = IPost & { _id: unknown };
@@ -61,28 +60,21 @@ function toAdminPost(doc: LeanPostDoc): AdminPostDTO {
 
 export interface DashboardStats {
   posts: { published: number; draft: number; failed: number };
-  subscribers: { confirmed: number; pending: number; unsubscribed: number; total: number };
-  campaigns: { total: number; sent: number; scheduled: number };
   lastJob: JobDTO | null;
 }
 
 export async function getDashboardStats(): Promise<DashboardStats> {
   await connectToDatabase();
-  const [published, draft, failed] = await Promise.all([
+  await reapStaleJobs();
+  const [published, draft, failed, lastJobDoc] = await Promise.all([
     Post.countDocuments({ status: 'published' }),
     Post.countDocuments({ status: 'draft' }),
     Post.countDocuments({ status: 'failed' }),
-  ]);
-  const [subscribers, campaigns, lastJobDoc] = await Promise.all([
-    subscriberCounts(),
-    campaignCounts(),
     GenerationJob.findOne({}).sort({ createdAt: -1 }).lean<LeanJob>(),
   ]);
 
   return {
     posts: { published, draft, failed },
-    subscribers,
-    campaigns,
     lastJob: lastJobDoc ? toJob(lastJobDoc) : null,
   };
 }

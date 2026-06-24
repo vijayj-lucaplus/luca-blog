@@ -84,3 +84,14 @@ export function validateArticle(article: GeneratedPost): ValidationResult {
 
   return { passed: checks.every((check) => check.passed), checks };
 }
+
+/**
+ * Derives a 0-100 quality score from the validation checks (the share that
+ * passed). Replaces the second LLM "editor" pass so generation needs only one
+ * model call, keeping a run inside the serverless time limit.
+ */
+export function scoreFromValidation(validation: ValidationResult): number {
+  const total = validation.checks.length || 1;
+  const passed = validation.checks.filter((check) => check.passed).length;
+  return Math.round((passed / total) * 100);
+}

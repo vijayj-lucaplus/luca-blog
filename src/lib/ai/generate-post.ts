@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { chat } from '@/lib/ai/nim-client';
 import { parseLenientJson } from '@/lib/ai/parse-json';
-import { buildEditorMessages, buildWriterMessages } from '@/lib/ai/prompts';
+import { buildWriterMessages } from '@/lib/ai/prompts';
 import type { CategoryInfo, GeneratedPost } from '@/types/blog';
 
 const faqSchema = z.object({
@@ -18,12 +18,6 @@ const generatedSchema = z.object({
   keywords: z.array(z.string().min(2)).min(1).max(15),
   focusKeyword: z.string().min(2),
   faq: z.array(faqSchema).min(2).max(6),
-});
-
-const editorSchema = z.object({
-  score: z.coerce.number().min(0).max(100),
-  issues: z.array(z.string()).default([]),
-  publishRecommended: z.boolean().default(false),
 });
 
 /**
@@ -47,6 +41,11 @@ export interface GenerateArticleResult {
   tokensOut: number;
 }
 
+/**
+ * Single NIM call that writes a full article. Bounded by a per-call timeout and
+ * a modest token cap so the whole generate-and-publish pipeline finishes inside
+ * the serverless function time limit — one fast call, no second editor pass.
+ */
 export async function generateArticle(params: {
   topicTitle: string;
   focusKeyword: string;
@@ -54,35 +53,14 @@ export async function generateArticle(params: {
   category: CategoryInfo;
 }): Promise<GenerateArticleResult> {
   const messages = buildWriterMessages(params);
-  const result = await chat(messages, { temperature: 0.6, maxTokens: 4096 });
+  const result = await chat(messages, {
+    temperature: 0.6,
+    maxTokens: 2048,
+    timeoutMs: 45_000,
+  });
   const parsed = generatedSchema.parse(parseWriterResponse(result.content)) as GeneratedPost;
   return {
     article: parsed,
-    tokensIn: result.tokensIn,
-    tokensOut: result.tokensOut,
-  };
-}
-
-export interface ScoreArticleResult {
-  score: number;
-  issues: string[];
-  publishRecommended: boolean;
-  tokensIn: number;
-  tokensOut: number;
-}
-
-export async function scoreArticle(article: GeneratedPost): Promise<ScoreArticleResult> {
-  const messages = buildEditorMessages({
-    title: article.title,
-    bodyMarkdown: article.bodyMarkdown,
-    focusKeyword: article.focusKeyword,
-  });
-  const result = await chat(messages, { temperature: 0.2, maxTokens: 800 });
-  const parsed = editorSchema.parse(parseLenientJson(result.content));
-  return {
-    score: parsed.score,
-    issues: parsed.issues,
-    publishRecommended: parsed.publishRecommended,
     tokensIn: result.tokensIn,
     tokensOut: result.tokensOut,
   };

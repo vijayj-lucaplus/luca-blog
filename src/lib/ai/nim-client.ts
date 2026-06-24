@@ -17,6 +17,9 @@ export interface ChatResult {
   tokensOut: number;
 }
 
+const DEFAULT_TIMEOUT_MS = 45_000;
+const MAX_RETRIES = 2;
+
 let client: OpenAI | null = null;
 
 function getClient(): OpenAI {
@@ -36,24 +39,36 @@ function getClient(): OpenAI {
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-/** Calls NIM chat completions with retry/backoff on rate limits (429) and 5xx. */
+/**
+ * Calls NIM chat completions with a per-request timeout plus retry/backoff on
+ * rate limits (429) and 5xx. A timeout is NOT retried — it throws immediately so
+ * a slow run fails cleanly within the function budget instead of being
+ * hard-killed by the host (which would orphan the job).
+ */
 export async function chat(
   messages: ChatMessage[],
-  options: { model?: string; temperature?: number; maxTokens?: number } = {},
+  options: {
+    model?: string;
+    temperature?: number;
+    maxTokens?: number;
+    timeoutMs?: number;
+  } = {},
 ): Promise<ChatResult> {
   const model = options.model ?? env.NIM_MODEL;
-  const maxRetries = 3;
   let lastError: unknown;
 
-  for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt += 1) {
     try {
-      const completion = await getClient().chat.completions.create({
-        model,
-        messages: messages as OpenAI.Chat.Completions.ChatCompletionMessageParam[],
-        temperature: options.temperature ?? 0.6,
-        top_p: 0.95,
-        max_tokens: options.maxTokens ?? 4096,
-      });
+      const completion = await getClient().chat.completions.create(
+        {
+          model,
+          messages: messages as OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+          temperature: options.temperature ?? 0.6,
+          top_p: 0.95,
+          max_tokens: options.maxTokens ?? 2048,
+        },
+        { timeout: options.timeoutMs ?? DEFAULT_TIMEOUT_MS },
+      );
 
       const content = completion.choices[0]?.message?.content ?? '';
       return {
@@ -66,7 +81,7 @@ export async function chat(
       const status = (error as { status?: number }).status;
       const retryable =
         status === 429 || (typeof status === 'number' && status >= 500);
-      if (!retryable || attempt === maxRetries) break;
+      if (!retryable || attempt === MAX_RETRIES) break;
       const backoff = 1000 * 2 ** attempt;
       logger.warn({ status, attempt, backoff }, 'NIM request failed; retrying');
       await sleep(backoff);

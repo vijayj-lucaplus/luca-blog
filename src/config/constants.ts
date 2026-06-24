@@ -102,7 +102,7 @@ export interface TopicSeed {
 }
 
 /**
- * Curated topic backlog. The scheduler walks this list (skipping topics whose
+ * Curated topic backlog. Generation walks this list (skipping topics whose
  * focus keyword already has a published post) so generation stays on-strategy
  * and avoids duplicate articles.
  */

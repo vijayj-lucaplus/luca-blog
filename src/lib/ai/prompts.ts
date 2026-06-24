@@ -53,25 +53,3 @@ Write an in-depth article of at least 900 words. Respond using the ---META--- / 
     { role: 'user', content: user },
   ];
 }
-
-export function buildEditorMessages(article: {
-  title: string;
-  bodyMarkdown: string;
-  focusKeyword: string;
-}): ChatMessage[] {
-  const system = `You are a strict editorial reviewer for a fintech blog. Score a draft for publication readiness on a 0-100 scale. Reward: genuine usefulness, clear structure, on-topic depth, presence of the required disclaimer, and natural keyword use. Penalise heavily: invented statistics or fabricated facts, thin or padded content, keyword stuffing, missing disclaimer, off-topic drift, or unsafe financial/tax/legal advice stated as fact.
-
-Respond with ONLY a single-line JSON object (no fences, no commentary, no line breaks inside it):
-{"score":0-100,"issues":["short issue strings"],"publishRecommended":true|false}`;
-
-  const user = `Focus keyword: ${article.focusKeyword}
-Title: ${article.title}
-
-Article body:
-${article.bodyMarkdown}`;
-
-  return [
-    { role: 'system', content: system },
-    { role: 'user', content: user },
-  ];
-}

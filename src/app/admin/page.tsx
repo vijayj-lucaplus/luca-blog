@@ -70,10 +70,9 @@ export default async function AdminDashboardPage() {
 
       <h1 className="font-heading text-2xl font-extrabold text-navy">Dashboard</h1>
 
-      <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <StatCard label="Published" value={stats?.posts.published ?? 0} sub={`${stats?.posts.draft ?? 0} drafts`} />
-        <StatCard label="Subscribers" value={stats?.subscribers.confirmed ?? 0} sub={`${stats?.subscribers.pending ?? 0} pending`} />
-        <StatCard label="Campaigns sent" value={stats?.campaigns.sent ?? 0} sub={`${stats?.campaigns.scheduled ?? 0} scheduled`} />
+        <StatCard label="Drafts" value={stats?.posts.draft ?? 0} sub={`${stats?.posts.failed ?? 0} failed`} />
         <StatCard
           label="Last job"
           value={stats?.lastJob?.status ?? '—'}

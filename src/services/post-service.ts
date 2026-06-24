@@ -123,18 +123,6 @@ export async function getRelatedPosts(
   return docs.map(toDTO);
 }
 
-export async function getPostsSince(sinceDays: number): Promise<PostDTO[]> {
-  await connectToDatabase();
-  const since = new Date(Date.now() - sinceDays * 24 * 60 * 60 * 1000);
-  const docs = await Post.find({
-    status: 'published',
-    publishedAt: { $gte: since },
-  })
-    .sort({ publishedAt: -1 })
-    .lean<LeanPost[]>();
-  return docs.map(toDTO);
-}
-
 export async function slugExists(slug: string): Promise<boolean> {
   await connectToDatabase();
   return (await Post.countDocuments({ slug })) > 0;

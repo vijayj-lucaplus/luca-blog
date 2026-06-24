@@ -21,12 +21,6 @@ export type GenerationJobStatus =
 
 export type GenerationTrigger = 'cron' | 'manual';
 
-export type SubscriberStatus = 'pending' | 'confirmed' | 'unsubscribed';
-
-export type CampaignStatus = 'draft' | 'scheduled' | 'sending' | 'sent' | 'failed';
-
-export type CampaignType = 'manual' | 'digest' | 'ai';
-
 export interface FaqItem {
   question: string;
   answer: string;

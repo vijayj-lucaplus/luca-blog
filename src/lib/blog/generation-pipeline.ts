@@ -1,18 +1,19 @@
 import { revalidatePath } from 'next/cache';
 import { CATEGORY_BY_SLUG, SITE } from '@/config/constants';
 import { env, isNimConfigured } from '@/config/env';
-import { generateArticle, scoreArticle } from '@/lib/ai/generate-post';
+import { generateArticle } from '@/lib/ai/generate-post';
 import { computeReadingTime } from '@/lib/blog/reading-time';
 import { toSlug } from '@/lib/blog/slug';
 import { pickCategoryForDate, selectTopic } from '@/lib/blog/topic-queue';
-import { validateArticle } from '@/lib/blog/validators';
+import { scoreFromValidation, validateArticle } from '@/lib/blog/validators';
 import { connectToDatabase } from '@/lib/db/mongoose';
 import { coverUrlFor, ogUrlFor } from '@/lib/images/cover';
 import { logger } from '@/lib/logger';
 import { markdownToPlainText, truncate } from '@/lib/text';
 import { GenerationJob } from '@/models/generation-job';
+import { reapStaleJobs } from '@/services/job-service';
 import { createPost, isDuplicate, slugExists } from '@/services/post-service';
-import type { CategorySlug, GenerationTrigger, QualityCheck } from '@/types/blog';
+import type { CategorySlug, GenerationTrigger } from '@/types/blog';
 
 export interface RunGenerationOptions {
   trigger: GenerationTrigger;
@@ -71,6 +72,7 @@ export async function runGenerationJob(
   options: RunGenerationOptions,
 ): Promise<RunGenerationResult> {
   await connectToDatabase();
+  await reapStaleJobs();
 
   if (!env.BLOG_GENERATION_ENABLED) {
     return { status: 'skipped', message: 'Generation disabled (BLOG_GENERATION_ENABLED=false).' };
@@ -135,21 +137,7 @@ export async function runGenerationJob(
     const { article } = generated;
 
     const validation = validateArticle(article);
-
-    let score = 0;
-    let editorIssues: string[] = [];
-    let editorTokensIn = 0;
-    let editorTokensOut = 0;
-    try {
-      const editor = await scoreArticle(article);
-      score = editor.score;
-      editorIssues = editor.issues;
-      editorTokensIn = editor.tokensIn;
-      editorTokensOut = editor.tokensOut;
-    } catch (error) {
-      logger.warn({ err: String(error) }, 'Editor scoring failed; defaulting to 0');
-      editorIssues = ['editor scoring failed'];
-    }
+    const score = scoreFromValidation(validation);
 
     if (await isDuplicate(topic.focusKeyword, article.title)) {
       await job.updateOne({
@@ -202,21 +190,15 @@ export async function runGenerationJob(
       publishedAt: shouldPublish ? new Date() : null,
     });
 
-    const editorChecks: QualityCheck[] = editorIssues.map((issue) => ({
-      name: 'editor',
-      passed: false,
-      detail: issue,
-    }));
-
     await job.updateOne({
       status: 'succeeded',
       postId: post.id,
       postSlug: slug,
       qualityScore: score,
       validationPassed: validation.passed,
-      validationChecks: [...validation.checks, ...editorChecks],
-      tokensIn: generated.tokensIn + editorTokensIn,
-      tokensOut: generated.tokensOut + editorTokensOut,
+      validationChecks: validation.checks,
+      tokensIn: generated.tokensIn,
+      tokensOut: generated.tokensOut,
       finishedAt: new Date(),
       durationMs: Date.now() - startedAt,
     });
